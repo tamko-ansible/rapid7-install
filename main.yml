@@ -1,0 +1,114 @@
+---
+  - hosts: all
+    become: true
+
+    vars:
+      agent_key: "3265b839-55d3-4d8d-a8d3-d316d71f8fe1"
+      crowdstrike_checksum: "BCD2C4645C454113AD25A3A138B6BC39-5C"
+
+    tasks:
+      - name: Copy sudoers file to remote machine
+        ansible.builtin.copy:
+          src: ansible
+          dest: /etc/sudoers.d/ansible
+          validate: /usr/sbin/visudo -csf %s
+
+      - name: Enable CentOS 8 Repository mirrorlist
+        ansible.builtin.shell: sudo sed -i -e "s|mirrorlist=|#mirrorlist=|g" /etc/yum.repos.d/CentOS-*
+        when: ansible_os_family == 'RedHat'
+
+      - name: Enable CentOS 8 Repository baseurl
+        ansible.builtin.shell: sudo sed -i -e "s|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g" /etc/yum.repos.d/CentOS-*
+        when: ansible_os_family == 'RedHat'
+
+      - name: Install libnl on CentOS 7
+        ansible.builtin.yum:
+          name: libnl
+          state: present
+        when: ansible_os_family == 'RedHat' and ansible_distribution_major_version == '7'
+
+      - name: Install libnl on CentOS 8
+        ansible.builtin.dnf:
+          name: 
+            - libnl3.x86_64
+            - libnl3-cli.x86_64
+            - libnl3-devel.x86_64
+          state: present
+        when: ansible_os_family == 'RedHat' and ansible_distribution_major_version == '8'
+
+      - name: Install unzip if it is not installed
+        ansible.builtin.apt:
+          name: unzip
+          state: present
+        when: ansible_os_family == 'Debian'
+
+      - name: Install unzip if it is not installed
+        ansible.builtin.yum:
+          name: unzip.x86_64
+          state: present
+        when: ansible_os_family == 'RedHat' and ansible_distribution_major_version == '8'
+
+      - name: Copy security.tar to device
+        ansible.builtin.copy:
+          src: security.tar
+          dest: /tmp/security.tar
+
+      - name: Create security directory
+        ansible.builtin.file:
+          name: /tmp/security
+          state: directory
+
+      - name: Unarchive security.tar
+        ansible.builtin.unarchive:
+          src: /tmp/security.tar
+          dest: /tmp
+          remote_src: yes
+
+      - name: Unzip file
+        ansible.builtin.unarchive:
+          src: /tmp/security/linux__Insight_Agent.zip
+          dest: /tmp/security
+          remote_src: yes
+
+      - name: Change executable type
+        ansible.builtin.shell: chmod +x /tmp/security/agent_installer.sh
+
+      - name: Check if directory exists
+        stat:
+          path: /opt/rapid7
+        register: directory_exists
+
+      - name: Install Rapid7
+        ansible.builtin.shell: "/bin/bash /tmp/security/agent_installer.sh install_start --token us:{{ agent_key }}"
+        when: not directory_exists.stat.exists
+
+      - name: Install CrowdStrike on Debian
+        ansible.builtin.apt:
+          deb: /tmp/security/falcon-sensor_6.35.0-13207_amd64.deb
+          state: present
+        when: ansible_os_family == 'Debian'
+
+      - name: Install CrowdStrike on CentOS 7
+        ansible.builtin.yum:
+          name: /tmp/security/falcon-sensor-6.38.0-13501.el7.x86_64.rpm
+          disable_gpg_check: yes
+          state: present
+        when: ansible_os_family == 'RedHat' and ansible_distribution_major_version == '7'
+
+      - name: Install CrowdStrike on CentOS 8
+        ansible.builtin.dnf:
+          name: /tmp/security/falcon-sensor-6.38.0-13501.el8.x86_64.rpm
+          disable_gpg_check: yes
+          state: present
+        when: ansible_os_family == 'RedHat' and ansible_distribution_major_version == '8'
+
+      - name: Install falcon-sensor
+        ansible.builtin.shell:
+          cmd: "sudo /opt/CrowdStrike/falconctl -f -s --cid={{ crowdstrike_checksum }}"
+
+      - name: Start falcon-sensor
+        ansible.builtin.systemd:
+          name: falcon-sensor
+          state: started
+          enabled: yes
+
