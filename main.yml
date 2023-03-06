@@ -7,11 +7,11 @@
       crowdstrike_checksum: "BCD2C4645C454113AD25A3A138B6BC39-5C"
 
     tasks:
-      - name: Copy sudoers file to remote machine
-        ansible.builtin.copy:
-          src: ansible
-          dest: /etc/sudoers.d/ansible
-          validate: /usr/sbin/visudo -csf %s
+      #      - name: Copy sudoers file to remote machine
+      #        ansible.builtin.copy:
+      #          src: ansible
+      #          dest: /etc/sudoers.d/ansible
+      #          validate: /usr/sbin/visudo -csf %s
 
       - name: Enable CentOS 8 Repository mirrorlist
         ansible.builtin.shell: sudo sed -i -e "s|mirrorlist=|#mirrorlist=|g" /etc/yum.repos.d/CentOS-*
