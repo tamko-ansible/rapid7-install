@@ -1,6 +1,8 @@
 ---
   - hosts: all
-    become: true
+    become: yes
+    become_method: sudo
+    become_user: root
 
     vars:
       agent_key: "3265b839-55d3-4d8d-a8d3-d316d71f8fe1"
